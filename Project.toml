@@ -1,0 +1,9 @@
+name = "OtherSatSolver"
+uuid = "09ba1ff9-e8ee-48f0-a0ec-3ed9663ef530"
+authors = ["heyx3 <manning.w27@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
