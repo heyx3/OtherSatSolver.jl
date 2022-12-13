@@ -1,0 +1,243 @@
+{
+    "buildings" : {
+        "smelter": 3,
+        "foundry": 16,
+        "constructor": 5,
+        "assembler": 15,
+        "manufacturer": 55
+    },
+
+    "building_per_inputs": {
+        "1": "constructor",
+        "2": "assembler",
+        "3": "manufacturer",
+        "4": "manufacturer"
+    },
+    "COMMENT": "Those are just the inferred buildings if a recipe doesn't explicitly list one.",
+
+    "conveyor_speeds": [ 60, 120, 270, 480 ],
+    
+    "raw_items": [
+        "iron_ore", "copper_ore", "caterium",
+        "coal", "sulfur", "bauxite",
+        "limestone", "raw_quartz",
+        "water", "oil", "nitrogen",
+        "wood", "leaves", "alien_protein"
+    ],
+    "main_recipes": [
+        {
+            "COMMENT": "raw ingredient processing...",
+
+            "inputs": { "iron_ore": 1 },
+            "outputs": { "iron_ingot": 1 },
+            "per_minute": 30,
+            "building": "smelter"
+        },
+        {
+            "inputs": { "copper_ore": 1 },
+            "outputs": { "copper_ingot": 1 },
+            "per_minute": 30,
+            "building": "smelter"
+        },
+        {
+            "inputs": { "coal": 3, "iron_ore": 3 },
+            "outputs": { "steel_ingot": 3 },
+            "per_minute": 45,
+            "building": "foundry"
+        },
+        {
+            "inputs": { "limestone": 3 },
+            "outputs": { "concrete": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "raw_quartz": 5 },
+            "outputs": { "quartz_crystal": 3 },
+            "per_minute": "22.5"
+        },
+        {
+            "inputs": { "raw_quartz": 3 },
+            "outputs": { "silica": 5 },
+            "per_minute": "37.5"
+        },
+        {
+            "inputs": { "coal": 1, "sulfur": 1 },
+            "outputs": { "black_powder": 2 },
+            "per_minute": 30
+        },
+
+
+        {
+            "COMMENT": "Basic ingot processing...",
+
+            "inputs": { "iron_ingot": 3 },
+            "outputs": { "iron_plate": 2 },
+            "per_minute": 20
+        },
+        {
+            "inputs": { "iron_ingot": 1 },
+            "outputs": { "iron_rod": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "copper_ingot": 1 },
+            "outputs": { "copper_wire": 2 },
+            "per_minute": 30
+        },
+        {
+            "inputs": { "copper_ingot": 2 },
+            "outputs": { "copper_sheet": 1 },
+            "per_minute": 10
+        },
+        {
+            "inputs": { "steel_ingot": 4 },
+            "outputs": { "steel_beam": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "steel_ingot": 3 },
+            "outputs": { "steel_pipe": 2 },
+            "per_minute": 20
+        },
+
+
+        {
+            "COMMENT": "Advanced processing lvl 1...",
+
+            "inputs": { "copper_wire": 2 },
+            "outputs": { "cable": 1 },
+            "per_minute": 30
+        },
+        {
+            "inputs": { "iron_rod": 1 },
+            "outputs": { "screw": 4 },
+            "per_minute": 40
+        },
+        {
+            "inputs": { "iron_rod": 5, "screw": 25 },
+            "outputs": { "rotor": 1 },
+            "per_minute": 4
+        },
+        {
+            "inputs": { "iron_plate": 6, "screw": 12 },
+            "outputs": { "reinforced_iron_plate": 1 },
+            "per_minute": 5
+        },
+        {
+            "inputs": { "steel_pipe": 3, "copper_wire": 8 },
+            "outputs": { "stator": 1 },
+            "per_minute": 5
+        },
+
+
+        {
+            "COMMENT": "Advanced processing lvl 2...",
+
+            "inputs": { "reinforced_iron_plate": 3, "iron_rod": 12 },
+            "outputs": { "modular_frame": 2 },
+            "per_minute": 2
+        },
+        {
+            "inputs": { "steel_beam": 4, "concrete": 5 },
+            "outputs": { "encased_industrial_beam": 1 },
+            "per_minute": 6
+        },
+        {
+            "inputs": { "rotor": 2, "stator": 2 },
+            "outputs": { "motor": 1 },
+            "per_minute": 5
+        },
+
+
+        {
+            "COMMENT": "Advanced processing lvl 3...",
+
+            "inputs": {
+                "modular_frame": 5,
+                "steel_pipe": 15,
+                "encased_industrial_beam": 5,
+                "screw": 100
+            },
+            "outputs": { "heavy_modular_frame": 1 },
+            "per_minute": 2
+        },
+        {
+            "inputs": {
+                "quartz_crystal": 36,
+                "cable": 28,
+                "reinforced_iron_plate": 5
+            },
+            "outputs": { "crystal_oscillator": 2 },
+            "per_minute": 1
+        },
+
+
+        {
+            "COMMENT": "Project Assembly...",
+
+            "inputs": { "reinforced_iron_plate": 1, "rotor": 1 },
+            "outputs": { "smart_plating": 1 },
+            "per_minute": 1
+        },
+        {
+            "inputs": { "stator": 1, "cable": 20 },
+            "outputs": { "automated_wiring": 1 },
+            "per_minute": "2.5"
+        },
+        {
+            "inputs": { "modular_frame": 1, "steel_beam": 12 },
+            "outputs": { "versatile_framework": 2 },
+            "per_minute": 5
+        },
+
+
+        {
+            "COMMENT": "Biomass processing...",
+
+            "inputs": { "wood": 4 },
+            "outputs": { "biomass": 20 },
+            "per_minute": 300
+        },
+        {
+            "inputs": { "leaves": 10 },
+            "outputs": { "biomass": 5 },
+            "per_minute": 60
+        },
+        {
+            "inputs": { "alien_protein": 1 },
+            "outputs": { "biomass": 100 },
+            "per_minute": 1500
+        },
+        {
+            "inputs": { "biomass": 8 },
+            "outputs": { "solid_biofuel": 4 },
+            "per_minute": 60
+        },
+
+
+        {
+            "COMMENT": "Equipment...",
+
+            "inputs": { "iron_rod": 1 },
+            "outputs": { "iron_rebar": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "iron_rebar": 2, "quartz_crystal": 3 },
+            "outputs": { "shatter_rebar": 1 },
+            "per_minute": 5
+        }
+    ],
+    "alternative_recipes": [
+        {
+            "inputs": { "copper_sheet": 6, "screw": 52 },
+            "outputs": { "rotor": 3 },
+            "per_minute": "11.25"
+        },
+        {
+            "inputs": { "raw_quartz": 3, "limestone": 5 },
+            "outputs": { "silica": 7 },
+            "per_minute": "26.25"
+        }
+    ]
+}
