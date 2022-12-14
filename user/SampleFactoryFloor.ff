@@ -1,0 +1,7 @@
+{
+    "outputs_per_minute": {
+        "modular_frame": 4,
+        "rotor": 8,
+        "reinforced_iron_plate": 4
+    }
+}

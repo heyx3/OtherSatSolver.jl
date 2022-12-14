@@ -72,3 +72,20 @@ end
 # For syntactic convenience, add an overload which converts it from a number or symbol.
 parse_rational(n::Number, ::Type{I} = Int) where {I<:Integer} = convert(Rational{I}, n)
 parse_rational(s::Symbol, ::Type{I} = Int) where {I<:Integer} = parse_rational(string(s), I)
+
+"
+Converts a JSON value into a Rational.
+If given a float/double, it will output `nothing` because
+    the whole point of using rationals internally is to avoid floating-point issues.
+If unable to parse for some other reason (e.x. given a JSON object or array),
+    it will return `missing`.
+To load fractional numbers from JSON, they should be strings rather than literals.
+"
+load_json_number(obj, I = Int)::Union{Rational{I}, Nothing, Missing} =
+    if obj isa AbstractFloat
+        nothing
+    elseif isa(obj, Number) || isa(obj, AbstractString)
+        parse_rational(obj, I)
+    else
+        missing
+    end

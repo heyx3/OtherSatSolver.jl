@@ -1,9 +1,10 @@
-"Everything available to the player, plus some helper lookup tables."
+"Everything theoretically available to a Satisfactory player."
 struct Cookbook
-    main_recipes::Set{Recipe} # The recipes all players have
+    main_recipes::Vector{Recipe} # The recipes all players have
     alternative_recipes::Vector{Recipe} # The recipes that come from hard drives.
                                         # Well-ordered so that you can refer to them by index.
-    buildings::Dict{Building, SNumber} # Each building uses some amount of power
+    buildings::Dict{Building, SNumber} # Each building uses some amount of power,
+                                       #   in the game's units (MW).
     raw_items::Set{Item}
     conveyor_speeds::Vector{SNumber} # Items transported per minute for each Mk
 end
@@ -32,15 +33,17 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
         error("Expected a JSON object, got the literal '", json_str, "'")
     end
 
-    load_json_number(obj, desc) = if obj isa AbstractFloat
-                                      error("Passed a literal decimal number for ", desc, ": '", obj,
-                                            "'. This will create floating-point errors!",
-                                            " Please surround the number in quotes to make it a string.")
-                                  elseif isa(obj, Number) || isa(obj, AbstractString)
-                                      parse_rational(obj)
-                                  else
-                                      error("Can't convert data for ", desc, " into a number: '", obj, "'")
-                                  end
+    load_cookbook_number(obj, desc) = let result = load_json_number(obj)
+        if isnothing(result)
+            error("Passed a literal decimal number for ", desc, ": '", obj,
+                  "'. This will create floating-point errors!",
+                  " Please surround the number in quotes to make it a string.")
+        elseif ismissing(result)
+            error("Can't convert data for ", desc, " into a number: '", obj, "'")
+        else
+            result
+        end
+    end
 
     buildings = Dict{Building, SNumber}()
     if !haskey(json_dict, :buildings)
@@ -49,7 +52,7 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
     for (building, power_use) in json_dict[:buildings]
         # Note that no error-checking is done for whether the power use is negative.
         # Some buildings generate power!
-        buildings[Building(building)] = load_json_number(
+        buildings[Building(building)] = load_cookbook_number(
             power_use, "power use of building '$building'"
         )
     end
@@ -87,7 +90,7 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
         error("No 'conveyor_speeds' array given!")
     end
     for conveyor_speed in json_dict[:conveyor_speeds]
-        conveyor_speed = load_json_number(conveyor_speed, "conveyor speed value")
+        conveyor_speed = load_cookbook_number(conveyor_speed, "conveyor speed value")
         if conveyor_speed <= 0
             error("Conveyor speed must be >= 0: ", conveyor_speed)
         elseif maximum(conveyor_speeds, init=0) >= conveyor_speed
@@ -96,10 +99,10 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
         push!(conveyor_speeds, conveyor_speed)
     end
 
-    main_recipes = Set{Recipe}()
+    main_recipes = Vector{Recipe}()
     alternative_recipes = Vector{Recipe}()
-    for (r_set, r_key) in [(main_recipes, :main_recipes),
-                           (alternative_recipes, :alternative_recipes)]
+    for (r_list, r_key) in [(main_recipes, :main_recipes),
+                            (alternative_recipes, :alternative_recipes)]
         if haskey(json_dict, r_key)
             for recipe in json_dict[r_key]
                 # Load inputs/outputs.
@@ -112,7 +115,7 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
                                                (r_outputs, :outputs)]
                     for (ingredient, count) in recipe[r_key]
                         ingredient = Item(ingredient)
-                        r_ingredients[ingredient] = load_json_number(count, "count for ingredient '$ingredient'")
+                        r_ingredients[ingredient] = load_cookbook_number(count, "count for ingredient '$ingredient'")
                     end
                 end
 
@@ -138,8 +141,8 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
                         error("Can only use the 'per_minute' field on a recipe with 1 output! ",
                                 recipe)
                     end
-                    per_minute = load_json_number(recipe[:per_minute],
-                                                  "'per_minute' field in recipe $recipe")
+                    per_minute = load_cookbook_number(recipe[:per_minute],
+                                                      "'per_minute' field in recipe $recipe")
                     if per_minute <= 0
                         error("The per-minute rate of recipes must be > 0: ", recipe)
                     end
@@ -147,8 +150,8 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
                     recipes_per_minute = per_minute // first(r_outputs)[2]
                     duration_seconds = 1 // (recipes_per_minute // 60)
                 elseif haskey(recipe, :duration_seconds)
-                    duration_seconds = load_json_number(recipe[:duration_seconds],
-                                                        "'duration_seconds' field in recipe $recipe")
+                    duration_seconds = load_cookbook_number(recipe[:duration_seconds],
+                                                            "'duration_seconds' field in recipe $recipe")
                     if duration_seconds < 0
                         error("The duration of recipes must be >= 0: ", recipe)
                     end
@@ -156,7 +159,7 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
                     error("No timing information given. Either provide 'per_minute' or 'duratioon_seconds'")
                 end
 
-                push!(r_set, Recipe(r_inputs, r_outputs, duration_seconds, building))
+                push!(r_list, Recipe(r_inputs, r_outputs, duration_seconds, building))
             end
         end
     end

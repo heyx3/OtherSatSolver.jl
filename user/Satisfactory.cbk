@@ -16,7 +16,7 @@
     "COMMENT": "Those are just the inferred buildings if a recipe doesn't explicitly list one.",
 
     "conveyor_speeds": [ 60, 120, 270, 480 ],
-    
+
     "raw_items": [
         "iron_ore", "copper_ore", "caterium",
         "coal", "sulfur", "bauxite",
