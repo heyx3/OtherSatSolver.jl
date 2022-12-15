@@ -17,10 +17,11 @@ include("printing.jl")
 
 export parse_rational, load_json_number, SNumber,
        Item, Building, Recipe,
+       recipes_per_minute, input_per_minute, output_per_minute,
        Cookbook, parse_cookbook_json,
        GameSession, write_game_session, read_game_session,
        FactoryFloor, parse_factory_floor_json,
        FactoryOverview, solve,
-       print_nice
+       print_nice, print_building
 
 end # module

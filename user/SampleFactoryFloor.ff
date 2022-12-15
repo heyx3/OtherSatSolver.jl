@@ -1,7 +1,13 @@
 {
-    "outputs_per_minute": {
+    "inputs_per_minute": {
         "modular_frame": 4,
         "rotor": 8,
         "reinforced_iron_plate": 4
+    },
+    "outputs_per_minute": {
+        "heavy_modular_frame": 1,
+        "encased_industrial_beam": 12,
+        "stator": "0.2",
+        "motor": 5
     }
 }

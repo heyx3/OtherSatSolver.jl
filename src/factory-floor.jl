@@ -2,6 +2,9 @@
 struct FactoryFloor
     outputs_per_minute::Dict{Item, SNumber}
 
+    # Incoming items that the factory can take as a given; it does not need to make/mine them.
+    inputs_per_minute::Dict{Item, SNumber}
+
     # For each output item, how much weight to give to each of its recipes
     #    in 'game_session.recipes_by_output'.
     output_recipe_weights::Dict{Item, Vector{Float64}}
@@ -17,7 +20,9 @@ Any outputs which you didn't provide recipe-weights for
 Output weights are automatically normalized.
 "
 function FactoryFloor( session::GameSession,
-                       outputs_per_minute::Dict{Item, SNumber},
+                       outputs_per_minute::Dict{Item, SNumber}
+                       ;
+                       inputs_per_minute::Dict{Item, SNumber} = Dict{Item, SNumber}(),
                        recipe_weights::Dict{Item, Vector{Float64}} = Dict{Item, Vector{Float64}}()
                      )::FactoryFloor
     # Create a copy of the recipe weights for us to modify internally.
@@ -40,7 +45,7 @@ function FactoryFloor( session::GameSession,
         end
     end
 
-    return FactoryFloor(outputs_per_minute, recipe_weights, session)
+    return FactoryFloor(outputs_per_minute, inputs_per_minute, recipe_weights, session)
 end
 
 
@@ -79,6 +84,16 @@ function parse_factory_floor_json(json_str::AbstractString, session::GameSession
         outputs_per_minute[item] = count
     end
 
+    # Read the desired inputs.
+    inputs_per_minute = Dict{Item, SNumber}()
+    if haskey(json_dict, :inputs_per_minute)
+        for (item,  count) in json_dict[:inputs_per_minute]
+            item = Item(item)
+            count = load_factory_number(count, "extra inputs of item '$item'")
+            inputs_per_minute[item] = count
+        end
+    end
+
     # Read the explicit recipe weights.
     recipe_weights = Dict{Item, Vector{Float64}}()
     if haskey(json_dict, :recipe_weights)
@@ -88,5 +103,7 @@ function parse_factory_floor_json(json_str::AbstractString, session::GameSession
     end
 
     # The constructor call will fill in gaps, normalize weights, etc.
-    return FactoryFloor(session, outputs_per_minute, recipe_weights)
+    return FactoryFloor(session, outputs_per_minute,
+                        inputs_per_minute=inputs_per_minute,
+                        recipe_weights=recipe_weights)
 end

@@ -17,13 +17,17 @@ end
 function print_building(io::IO, b::Building, pluralize::Bool = false)
     s = string(b)
     print(io, uppercase(s[1]))
-    print(io, SubString(s, 2:length(s)))
+    print(io, SubString(s, 2:(length(s) - 1)))
     if pluralize
         if s[end] == 's'
-            print(io, "es")
+            print(io, "ses")
+        elseif s[end] == 'y'
+            print(io, "ies")
         else
-            print(io, 's')
+            print(io, s[end], 's')
         end
+    else
+        print(io, s[end])
     end
 end
 
@@ -148,6 +152,17 @@ function Base.print(io::IO, solution::FactoryOverview
     print(io, " MW  |  Continuous power usage: ")
     print_nice(io, solution.continuous_power_usage)
     print(io, " MW", line_ending)
+
+    # Unused inputs:
+    if !isempty(solution.unused_inputs)
+        print(io, TAB1..., "Unused inputs (all the others you provided get used): ", inner_bookends[1], line_ending)
+        for (item, amount) in solution.unused_inputs
+            print(io, TAB2..., item, ": ")
+            print_nice(io, amount)
+            print(io, " per minute", line_ending)
+        end
+        print(io, TAB1..., inner_bookends[2], line_ending)
+    end
 
     # Raw materials:
     print(io, TAB1..., "Raw material inputs: ", inner_bookends[1], line_ending)

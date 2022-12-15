@@ -16,6 +16,10 @@ struct Recipe
     building::Building
 end
 
+recipes_per_minute(r::Recipe) = 60 // r.duration_seconds
+input_per_minute(r::Recipe, i::Item) = recipes_per_minute(r) * r.inputs[i]
+output_per_minute(r::Recipe, i::Item = first(keys(r.outputs))) = recipes_per_minute(r) * r.outputs[i]
+
 Base.hash(r::Recipe, u::UInt) = hash(hash.((r.inputs, r.outputs, r.duration_seconds, r.building)), u)
 Base.:(==)(a::Recipe, b::Recipe) = (a.inputs == b.inputs) &&
                                    (a.outputs == b.outputs) &&

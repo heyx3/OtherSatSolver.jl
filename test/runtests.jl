@@ -98,6 +98,68 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
                                        :assembler)
 
 
+"A cookbook that uses multiple raw materials."
+const HYBRID_COOKBOOK_JSON = """{
+    "buildings" : {
+        "foundry": 16,
+        "constructor": 5,
+        "assembler": 15
+    },
+    "building_per_inputs": {
+        "1": "constructor",
+        "2": "assembler"
+    },
+    "raw_items": [
+        "iron_ore", "coal", "limestone",
+        "leaves"
+    ],
+    "conveyor_speeds": [ 60, 120, 270, 480 ],
+    "main_recipes": [
+        {
+            "inputs": { "limestone": 3 },
+            "outputs": { "concrete": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "coal": 3, "iron_ore": 3 },
+            "outputs": { "steel_ingot": 3 },
+            "per_minute": 45,
+            "building": "foundry"
+        },
+        {
+            "inputs": { "steel_ingot": 4 },
+            "outputs": { "steel_beam": 1 },
+            "per_minute": 15
+        },
+        {
+            "inputs": { "steel_ingot": 3 },
+            "outputs": { "steel_pipe": 2 },
+            "per_minute": 20
+        },
+        {
+            "inputs": { "steel_beam": 4, "concrete": 5 },
+            "outputs": { "encased_industrial_beam": 1 },
+            "per_minute": 6
+        },
+        {
+            "inputs": { "leaves": 10 },
+            "outputs": { "biomass": 5 },
+            "per_minute": 60
+        }
+    ]
+}"""
+const RECIPE_CONCRETE = Recipe(Dict(:limestone => 3), Dict(:concrete => 1), 60//15, :constructor)
+const RECIPE_STEEL_INGOT = Recipe(Dict(:coal => 3, :iron_ore => 3),
+                                  Dict(:steel_ingot => 3),
+                                  60 // (45//3), :foundry)
+const RECIPE_STEEL_BEAM = Recipe(Dict(:steel_ingot => 4), Dict(:steel_beam => 1), 60//15, :constructor)
+const RECIPE_STEEL_PIPE = Recipe(Dict(:steel_ingot => 3), Dict(:steel_pipe => 2), 60//20, :constructor)
+const RECIPE_ENCASED_INDUSTRIAL_BEAM = Recipe(Dict(:steel_beam => 4, :concrete => 5),
+                                              Dict(:encased_industrial_beam => 1),
+                                              60//6, :assembler)
+const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 60//60, :constructor)
+
+
 @testset "OtherSatSolver" begin
     @testset "Parsing" begin
         @test parse_rational("abcd") === nothing
@@ -224,6 +286,7 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
             Int[ ]
         ))
         @test trivial_floor.outputs_per_minute == Dict{Item, SNumber}()
+        @test trivial_floor.inputs_per_minute == Dict{Item, SNumber}()
         @test trivial_floor.output_recipe_weights == Dict{Item, Vector{Float64}}()
 
         interesting_floor = parse_factory_floor_json("""{
@@ -234,6 +297,9 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
             },
             "recipe_weights": {
                 "steel_pipe": [ 0.25, 0.75 ]
+            },
+            "inputs_per_minute": {
+                "iron_ingot": 2000
             }
         }""", GameSession(parse_cookbook_json(COMPLEX_COOKBOOK_JSON),
                           Int[ 1 ]))
@@ -249,6 +315,9 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
             :screw => Float64[ ],
             :steel_pipe => Float64[ 0.25, 0.75 ]
         )
+        @test interesting_floor.inputs_per_minute == Dict(
+            :iron_ingot => 2000
+        )
     end
 
     @testset "Printing" begin
@@ -263,15 +332,27 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
         @test spn(-1 // 3) == "-1/3"
         @test spn(180 // 51) == "3 9/17"
         @test spn(-180 // 51) == "-3 9/17"
+
+        spb(b, pl) = sprint(io -> print_building(io, b, pl))
+        @test spb(:assembler, false) == "Assembler"
+        @test spb(:assembler, true) == "Assemblers"
+        @test spb(:foundry, false) == "Foundry"
+        @test spb(:foundry, true) == "Foundries"
+        @test spb(:ends_in_s, false) == "Ends_in_s"
+        @test spb(:ends_in_s, true) == "Ends_in_ses"
     end
 
     @testset "Solving iron" begin
         # Work with the basic iron recipes, up to reinforced plates.
         cookbook = parse_cookbook_json(IRON_COOKBOOK_JSON)
 
-        function run_problem(desired_outputs, alternative_recipes = Int[ ])::Tuple{FactoryOverview, Set{Item}}
+        function run_problem(desired_outputs,
+                             alternative_recipes = Int[ ],
+                             inputs_per_minute = Dict{Item, SNumber}()
+                            )::Tuple{FactoryOverview, Set{Item}}
             session = GameSession(cookbook, alternative_recipes)
-            problem = FactoryFloor(session, Dict(k=>(v//1) for (k,v) in desired_outputs))
+            problem = FactoryFloor(session, Dict(k=>(v//1) for (k,v) in desired_outputs),
+                                   inputs_per_minute = Dict(k=>(v//1) for (k,v) in inputs_per_minute))
 
             # Solve, and capture the log for debugging.
             solution_box = Ref{Any}(nothing)
@@ -287,6 +368,7 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
         solution_trivial = run_problem(Dict(:iron_ore => 10))
         @test isempty(solution_trivial[2])
         @test isempty(solution_trivial[1].recipe_amounts)
+        @test isempty(solution_trivial[1].unused_inputs)
         @test solution_trivial[1].raw_amounts == Dict(:iron_ore => 10)
         @test solution_trivial[1].startup_power_usage == 0
         @test solution_trivial[1].continuous_power_usage == solution_trivial[1].startup_power_usage
@@ -294,6 +376,7 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
         # Design a factory that just makes a few ingots.
         solution_basic = run_problem(Dict(:iron_ingot => 5))
         @test isempty(solution_basic[2])
+        @test isempty(solution_basic[1].unused_inputs)
         @test solution_basic[1].recipe_amounts == Dict(RECIPE_IRON_INGOT => 5//30)
         @test solution_basic[1].raw_amounts == Dict(:iron_ore => 5)
         @test solution_basic[1].startup_power_usage == cookbook.buildings[RECIPE_IRON_INGOT.building] *
@@ -302,9 +385,12 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
 
         # Design a factory that makes two simple products from ingots.
         # Provide access to a superfluous alternative recipe.
-        solution_level1 = run_problem(Dict(:iron_plate=>500, :iron_rod=>1),
-                                      [ 1 ])
+        # Also ask for some item that can't be crafted, but provide that item as an input to the floor.
+        solution_level1 = run_problem(Dict(:iron_plate=>500, :iron_rod=>1, :widget=>11),
+                                      [ 1 ],
+                                      Dict(:widget=>20))
         @test isempty(solution_level1[2])
+        @test solution_level1[1].unused_inputs == Dict(:widget => 9)
         @test solution_level1[1].recipe_amounts == Dict(
             RECIPE_IRON_ROD => 1//15,
             RECIPE_IRON_PLATE => 500//20,
@@ -324,6 +410,7 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
         # Design a reinforced iron plate factory, without the alternative recipe that allows it.
         solution_impossible = run_problem(Dict(:reinforced_iron_plate => 20))
         @test solution_impossible[2] == Set([ :reinforced_iron_plate ])
+        @test isempty(solution_impossible[1].unused_inputs)
         @test isempty(solution_impossible[1].recipe_amounts)
         @test isempty(solution_impossible[1].raw_amounts)
         @test solution_impossible[1].startup_power_usage == 0
@@ -331,6 +418,7 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
 
         # Now try to design the reinforced iron plate factory for real.
         solution_big = run_problem(Dict(:reinforced_iron_plate => 20), [ 1 ])
+        @test isempty(solution_big[1].unused_inputs)
         @test isempty(solution_big[2])
         @test solution_big[1].recipe_amounts == Dict(
             RECIPE_REINFORCED_PLATE => 4//1,
@@ -354,5 +442,68 @@ const RECIPE_REINFORCED_PLATE = Recipe(Dict(:iron_plate => 6, :screw => 12),
         ))
         @test solution_big[1].continuous_power_usage == solution_big[1].startup_power_usage
     end
-    #TODO: Tests with multiple raw material types.
+
+    @testset "Solving more complex chains" begin
+        # Work with a steel+concrete cookbook.
+        cookbook = parse_cookbook_json(HYBRID_COOKBOOK_JSON)
+
+        function run_problem(desired_outputs,
+                             alternative_recipes = Int[ ],
+                             inputs_per_minute = Dict{Item, SNumber}()
+                            )::Tuple{FactoryOverview, Set{Item}}
+            session = GameSession(cookbook, alternative_recipes)
+            problem = FactoryFloor(session, Dict(k=>(v//1) for (k,v) in desired_outputs),
+                                   inputs_per_minute = Dict(k=>(v//1) for (k,v) in inputs_per_minute))
+
+            # Solve, and capture the log for debugging.
+            solution_box = Ref{Any}(nothing)
+            solution_log = sprint() do io
+                solution_box[] = solve(problem, io)
+            end
+            @debug "Solution log:\n============\n$solution_log\n=============="
+
+            return solution_box[]
+        end
+
+        solution = run_problem(Dict(:encased_industrial_beam => (2 + 1//4)),
+                               Int[ ],
+                               Dict(:concrete => 2))
+        @test isempty(solution[2])
+        @test isempty(solution[1].unused_inputs)
+        @test length(solution[1].recipe_amounts) == 4
+        @test solution[1].recipe_amounts[RECIPE_ENCASED_INDUSTRIAL_BEAM] ==
+                  (2 + 1//4) // 6
+        @test solution[1].recipe_amounts[RECIPE_STEEL_BEAM] ==
+                  (solution[1].recipe_amounts[RECIPE_ENCASED_INDUSTRIAL_BEAM] *
+                     input_per_minute(RECIPE_ENCASED_INDUSTRIAL_BEAM, :steel_beam)
+                  ) // output_per_minute(RECIPE_STEEL_BEAM)
+        @test solution[1].recipe_amounts[RECIPE_CONCRETE] ==
+                  ((solution[1].recipe_amounts[RECIPE_ENCASED_INDUSTRIAL_BEAM] *
+                      input_per_minute(RECIPE_ENCASED_INDUSTRIAL_BEAM, :concrete)) -
+                   2
+                  ) // output_per_minute(RECIPE_CONCRETE)
+        @test solution[1].recipe_amounts[RECIPE_STEEL_INGOT] ==
+                  (solution[1].recipe_amounts[RECIPE_STEEL_BEAM] *
+                   input_per_minute(RECIPE_STEEL_BEAM, :steel_ingot)
+                  ) // output_per_minute(RECIPE_STEEL_INGOT)
+        @test solution[1].raw_amounts == Dict(
+            :iron_ore => input_per_minute(RECIPE_STEEL_INGOT, :iron_ore) *
+                           solution[1].recipe_amounts[RECIPE_STEEL_INGOT],
+            :coal => input_per_minute(RECIPE_STEEL_INGOT, :coal) *
+                       solution[1].recipe_amounts[RECIPE_STEEL_INGOT],
+            :limestone => input_per_minute(RECIPE_CONCRETE, :limestone) *
+                            solution[1].recipe_amounts[RECIPE_CONCRETE]
+        )
+        @test solution[1].startup_power_usage == sum((
+            solution[1].recipe_amounts[RECIPE_ENCASED_INDUSTRIAL_BEAM] *
+               cookbook.buildings[RECIPE_ENCASED_INDUSTRIAL_BEAM.building],
+            solution[1].recipe_amounts[RECIPE_STEEL_BEAM] *
+               cookbook.buildings[RECIPE_STEEL_BEAM.building],
+            solution[1].recipe_amounts[RECIPE_CONCRETE] *
+               cookbook.buildings[RECIPE_CONCRETE.building],
+            solution[1].recipe_amounts[RECIPE_STEEL_INGOT] *
+               cookbook.buildings[RECIPE_STEEL_INGOT.building]
+        ))
+        @test solution[1].continuous_power_usage == solution[1].startup_power_usage
+    end
 end

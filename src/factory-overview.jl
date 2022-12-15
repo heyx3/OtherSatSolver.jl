@@ -5,6 +5,9 @@ struct FactoryOverview
     recipe_amounts::Dict{Recipe, SNumber}
     # How many raw ingredients are needed per minute.
     raw_amounts::Dict{Item, SNumber}
+    # Items which were mentioned as inputs in the FactoryFloor, but not used.
+    unused_inputs::Dict{Item, SNumber}
+    #TODO: Extra outputs that will be crafted (in the future, take them into account by iterating on the solution)
     #TODO: Total building counts
     # The total power usage across all buildings, not including those which generate power.
     startup_power_usage::SNumber
@@ -41,7 +44,8 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
     # This is done iteratively by peeling off each layer of resources using those resources' recipes.
     failed_items = Set{Item}()
     recipes_needed = Dict{Recipe, SNumber}()
-    raws_needed = Dict{Item, SNumber}()
+    unused_inputs_per_minute = copy(floor.inputs_per_minute)
+    raws_needed_per_minute = Dict{Item, SNumber}()
     new_resources_needed_per_minute = copy(floor.outputs_per_minute)
     infinite_loop_counter::Int = 0
     while !isempty(new_resources_needed_per_minute)
@@ -54,40 +58,52 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
         print_nice(log_io, output_count_per_minute)
         print(log_io, " '", next_output, "' per minute")
 
+        # If we have extra of this item, use that instead of crafting/mining it.
+        if get(unused_inputs_per_minute, next_output, 0) > 0
+            take_amount = min(output_count_per_minute, unused_inputs_per_minute[next_output])
+            output_count_per_minute -= take_amount
+
+            unused_inputs_per_minute[next_output] -= take_amount
+            print(log_io, ". We can take ",
+                          (output_count_per_minute == 0) ? "all of it" : take_amount,
+                          " from the floor input!")
+        end
+        if output_count_per_minute <= 0
+            continue
+        end
+
         # If this is a raw item, it is not crafted from a recipe but mined outside the factory.
         if next_output in cookbook.raw_items
-            print(log_io, ". But that's a raw item, so don't try to craft it.\n")
-            raws_needed[next_output] = get(raws_needed, next_output, 0//1) + output_count_per_minute
+            print(log_io, ". It's a raw item, so we'll need to mine it.\n")
+            raws_needed_per_minute[next_output] = get(raws_needed_per_minute, next_output, 0//1) +
+                                                  output_count_per_minute
+        # If there is no recipe for this item, then the solver fails.
+        elseif isnothing(output_recipe)
+            print(log_io, ". \n\tUH-OH: no recipe available! Skipping this item.\n")
+            push!(failed_items, next_output)
         else
-            # If there is no recipe for this item, then the solver fails.
-            if isnothing(output_recipe)
-                print(log_io, ". \n\tUH-OH: no recipe available! Skipping this item.\n")
-                push!(failed_items, next_output)
-            else
-                print(log_io, ". \n\tUsing this recipe: ", output_recipe, '\n')
+            print(log_io, ". \n\tUsing this recipe: ", output_recipe, '\n')
 
-                n_per_recipe_minute = (60 // output_recipe.duration_seconds) * output_recipe.outputs[next_output]
-                n_recipes_needed = output_count_per_minute // n_per_recipe_minute
-                recipes_needed[output_recipe] = n_recipes_needed + get(recipes_needed, output_recipe, 0 // 1)
-                print(log_io, "\tWe need (")
-                print_nice(log_io, output_count_per_minute)
-                print(log_io, ") / (")
-                print_nice(log_io, n_per_recipe_minute)
-                print(log_io, ") == ")
-                print_nice(log_io, n_recipes_needed)
-                print(log_io, " new instances of this recipe, for a new total of ")
-                print_nice(log_io, recipes_needed[output_recipe])
-                print(log_io, ".\n")
+            n_recipes_needed = output_count_per_minute // output_per_minute(output_recipe, next_output)
+            recipes_needed[output_recipe] = n_recipes_needed + get(recipes_needed, output_recipe, 0 // 1)
+            print(log_io, "\tWe need (")
+            print_nice(log_io, output_count_per_minute)
+            print(log_io, ") / (")
+            print_nice(log_io, output_per_minute(output_recipe, next_output))
+            print(log_io, ") == ")
+            print_nice(log_io, n_recipes_needed)
+            print(log_io, " instances of this recipe, for a new total of ")
+            print_nice(log_io, recipes_needed[output_recipe])
+            print(log_io, ".\n")
 
-                for (input, input_count_per_recipe) in output_recipe.inputs
-                    input_count_per_minute = n_recipes_needed * input_count_per_recipe // (output_recipe.duration_seconds // 60)
-                    print(log_io, "\tMore ingredients are now needed: ")
-                    print_nice(log_io, input_count_per_minute)
-                    print(log_io, " '", input, "' per minute.\n")
+            for (input, input_count_per_recipe) in output_recipe.inputs
+                input_count_per_minute = n_recipes_needed * input_count_per_recipe // (output_recipe.duration_seconds // 60)
+                print(log_io, "\tMore ingredients are now needed: ")
+                print_nice(log_io, input_count_per_minute)
+                print(log_io, " '", input, "' per minute.\n")
 
-                    new_resources_needed_per_minute[input] = input_count_per_minute +
-                                                             get(new_resources_needed_per_minute, input, 0//1)
-                end
+                new_resources_needed_per_minute[input] = input_count_per_minute +
+                                                            get(new_resources_needed_per_minute, input, 0//1)
             end
         end
 
@@ -114,7 +130,11 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
         end
     end
 
+    # Clean up the data reported to the user.
+    filter!(kvp -> kvp[2] != 0, unused_inputs_per_minute)
+
     print(log_io, "Finished!")
-    return (FactoryOverview(recipes_needed, raws_needed, startup_power, continuous_power),
+    return (FactoryOverview(recipes_needed, raws_needed_per_minute, unused_inputs_per_minute,
+                            startup_power, continuous_power),
             failed_items)
 end
