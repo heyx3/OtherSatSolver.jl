@@ -2,6 +2,9 @@ module OtherSatSolver
 
 using Random, JSON3, Printf
 
+# Optimization solver:
+using JuMP, EAGO
+
 const Optional{T} = Union{T, Nothing}
 @inline exists(x) = !isnothing(x) && !ismissing(x)
 
@@ -12,6 +15,7 @@ include("game-session.jl")
 include("factory-floor.jl")
 
 include("factory-overview.jl")
+include("complex-factory-overview.jl")
 
 include("printing.jl")
 
@@ -21,7 +25,7 @@ export parse_rational, load_json_number, SNumber,
        Cookbook, parse_cookbook_json,
        GameSession, write_game_session, read_game_session,
        FactoryFloor, parse_factory_floor_json,
-       FactoryOverview, solve,
+       FactoryOverview, solve, solve_complex,
        print_nice, print_building
 
 end # module

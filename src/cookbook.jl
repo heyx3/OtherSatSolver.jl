@@ -156,7 +156,9 @@ function parse_cookbook_json(json_str::AbstractString)::Cookbook
                         error("The duration of recipes must be >= 0: ", recipe)
                     end
                 else
-                    error("No timing information given. Either provide 'per_minute' or 'duratioon_seconds'")
+                    error("No timing information given for recipe <",
+                          sprint(io -> print(io, recipe)),
+                          ">. Either provide 'per_minute' or 'duration_seconds'")
                 end
 
                 push!(r_list, Recipe(r_inputs, r_outputs, duration_seconds, building))

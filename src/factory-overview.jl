@@ -4,6 +4,7 @@ struct FactoryOverview
     # E.x. a value of 2.5 means 250% of that building/recipe.
     recipe_amounts::Dict{Recipe, SNumber}
     # How many raw ingredients are needed per minute.
+    # Not including any inputs you explicitly provided to the factory floor.
     raw_amounts::Dict{Item, SNumber}
     # Items which were mentioned as inputs in the FactoryFloor, but not used.
     unused_inputs::Dict{Item, SNumber}
@@ -30,15 +31,14 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
     session::GameSession = floor.game_session
     cookbook::Cookbook = session.cookbook
 
-    # For now, to keep things simple,
-    #    pick the most desired recipe for each output and ignore the rest.
-    recipe_for_each_output::Dict{Item, Optional{Recipe}} = Dict(Iterators.map(floor.output_recipe_weights) do (item, weights)
-        item => (isempty(weights) ? nothing : session.recipes_by_output[item][findmax(weights)[2]])
-    end)
-    println(log_io, "Chosen recipes: ")
-    for (item, recipe) in recipe_for_each_output
-        println(log_io, '\t', item, ": ", recipe)
-    end
+        # Old behavior: pick the most desired recipe for each output and ignore the rest.
+        # recipe_for_each_output::Dict{Item, Optional{Recipe}} = Dict(Iterators.map(floor.output_recipe_weights) do (item, weights)
+        #     item => (isempty(weights) ? nothing : session.recipes_by_output[item][findmax(weights)[2]])
+        # end)
+        # println(log_io, "Chosen recipes: ")
+        # for (item, recipe) in recipe_for_each_output
+        #     println(log_io, '\t', item, ": ", recipe)
+        # end
 
     # Accumulate the total number of resources needed.
     # This is done iteratively by peeling off each layer of resources using those resources' recipes.
@@ -51,7 +51,7 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
     while !isempty(new_resources_needed_per_minute)
         # Pop an item off the stack.
         (next_output, output_count_per_minute) = first(new_resources_needed_per_minute)
-        output_recipe::Optional{Recipe} = get(recipe_for_each_output, next_output, nothing)
+            #output_recipe::Optional{Recipe} = get(recipe_for_each_output, next_output, nothing)
         delete!(new_resources_needed_per_minute, next_output)
 
         print(log_io, "Need to make ")
@@ -78,32 +78,49 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Tuple{FactoryOverview
             raws_needed_per_minute[next_output] = get(raws_needed_per_minute, next_output, 0//1) +
                                                   output_count_per_minute
         # If there is no recipe for this item, then the solver fails.
-        elseif isnothing(output_recipe)
+        elseif !haskey(session.recipes_by_output, next_output) || isempty(session.recipes_by_output[next_output])
             print(log_io, ". \n\tUH-OH: no recipe available! Skipping this item.\n")
             push!(failed_items, next_output)
         else
-            print(log_io, ". \n\tUsing this recipe: ", output_recipe, '\n')
-
-            n_recipes_needed = output_count_per_minute // output_per_minute(output_recipe, next_output)
-            recipes_needed[output_recipe] = n_recipes_needed + get(recipes_needed, output_recipe, 0 // 1)
-            print(log_io, "\tWe need (")
-            print_nice(log_io, output_count_per_minute)
-            print(log_io, ") / (")
-            print_nice(log_io, output_per_minute(output_recipe, next_output))
-            print(log_io, ") == ")
-            print_nice(log_io, n_recipes_needed)
-            print(log_io, " instances of this recipe, for a new total of ")
-            print_nice(log_io, recipes_needed[output_recipe])
             print(log_io, ".\n")
+            @assert(sum(floor.output_recipe_weights[next_output]) == 1,
+                    "Recipe weights should be normalized at this point")
+            for (recipe_idx_by_output::Int, recipe_idx_global::Int) in enumerate(session.recipes_by_output[next_output])
+                recipe = session.available_recipes[recipe_idx_global]
 
-            for (input, input_count_per_recipe) in output_recipe.inputs
-                input_count_per_minute = n_recipes_needed * input_count_per_recipe // (output_recipe.duration_seconds // 60)
-                print(log_io, "\tMore ingredients are now needed: ")
-                print_nice(log_io, input_count_per_minute)
-                print(log_io, " '", input, "' per minute.\n")
+                recipe_weight::SNumber = floor.output_recipe_weights[next_output][recipe_idx_by_output]
+                if recipe_weight == 0 # Avoid logging this recipe
+                    continue
+                end
+                recipe_desired_output_per_minute::SNumber = output_count_per_minute * recipe_weight
+                recipe_scale::SNumber = recipe_desired_output_per_minute // output_per_minute(recipe, next_output)
 
-                new_resources_needed_per_minute[input] = input_count_per_minute +
-                                                            get(new_resources_needed_per_minute, input, 0//1)
+                print(log_io, "\tLet's use ((")
+                print_nice(log_io, output_count_per_minute)
+                print(log_io, ") * (")
+                print_nice(log_io, recipe_weight)
+                print(log_io, ")) / (")
+                print_nice(log_io, output_per_minute(recipe, next_output))
+                print(log_io, ") == (")
+                print_nice(log_io, recipe_scale)
+                print(log_io, ") times of the recipe \"")
+                print(log_io, recipe, simplified=true)
+                print(log_io, "\".\n")
+
+                recipes_needed[recipe] = recipe_scale + get(recipes_needed, recipe, 0//1)
+                print(log_io, "\t\tNow that recipe is used a total of ")
+                print_nice(log_io, recipes_needed[recipe])
+                print(log_io, " times.\n")
+
+                for (input, input_count_per_recipe) in recipe.inputs
+                    input_count_per_minute = input_count_per_recipe * recipes_per_minute(recipe) * recipe_scale
+                    print(log_io, "\tMore ingredients are now needed: ")
+                    print_nice(log_io, input_count_per_minute)
+                    print(log_io, " '", input, "' per minute.\n")
+
+                    new_resources_needed_per_minute[input] = input_count_per_minute +
+                                                                get(new_resources_needed_per_minute, input, 0//1)
+                end
             end
         end
 

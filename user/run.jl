@@ -35,21 +35,29 @@ println("\tFinished!")
 
 # Solve the factory floor.
 factory_solution_log = sprint() do io::IO
-    global factory_solution = solve(FACTORY_FLOOR, io)
+    global factory_solution = #solve(FACTORY_FLOOR, io)
+                              solve_complex(FACTORY_FLOOR, io)
 end
-if isempty(factory_solution[2])
-    println("Perfect solution!")
+if isnothing(factory_solution)
+    println(":( Unable to solve it.")
 else
-    print(":( An imperfect solution. The following items couldn't be solved: ")
-    join(stdout, factory_solution[2], ", ")
-    println()
-    println("Partial solution is below:")
-    # Give the user time to read before printing the partial solution:
-    for _ in 1:3
-        sleep(1)
-        println('.')
-    end
+    println("Found a solution!")
 end
+
+# if isempty(factory_solution[2])
+#     println("Perfect solution!")
+# else
+#     print(":( An imperfect solution. The following items couldn't be solved: ")
+#     join(stdout, factory_solution[2], ", ")
+#     println()
+#     println("Partial solution is below:")
+#     # Give the user time to read before printing the partial solution:
+#     for _ in 1:3
+#         sleep(1)
+#         println('.')
+#     end
+# end
+
 println("First, the log:")
 sleep(2)
 println("\n\n>>>>>>>>>>>>>>>>>>>>")
@@ -57,4 +65,4 @@ println(factory_solution_log)
 println("<<<<<<<<<<<<<<<<<<<<")
 println("\n\nNow the solution!")
 sleep(2)
-println(factory_solution[1])
+println(factory_solution)

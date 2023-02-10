@@ -31,14 +31,17 @@ function print_building(io::IO, b::Building, pluralize::Bool = false)
     end
 end
 
-function print_ingredient_group(io::IO, items_and_counts; tab="")
+function print_ingredient_group(io::IO, items_and_counts; tab="", simplified::Bool = false)
     n_items = length(items_and_counts)
     if n_items == 0
         print(io, "[no items!?]")
     elseif n_items == 1
         (item, count) = first(items_and_counts)
-        print_nice(io, count)
-        print(io, ' ', item)
+        if !simplified
+            print_nice(io, count)
+            print(io, ' ')
+        end
+        print(io, item)
     else
         print(io, '<')
         for (i, (item, count)) in enumerate(items_and_counts)
@@ -46,20 +49,25 @@ function print_ingredient_group(io::IO, items_and_counts; tab="")
             if i > 1
                 print(io, " | ")
             end
-            print_nice(io, count)
-            print(io, ' ', item)
+            if !simplified
+                print_nice(io, count)
+                print(io, ' ')
+            end
+            print(io, item)
         end
         print(io, '>')
     end
 end
 
-function Base.print(io::IO, r::Recipe)
-    print(io, "After ")
-    print_nice(io, r.duration_seconds)
-    print(io, " seconds in a ", r.building, " yield ")
-    print_ingredient_group(io, r.outputs)
+function Base.print(io::IO, r::Recipe; simplified::Bool = false)
+    if !simplified
+        print(io, "After ")
+        print_nice(io, r.duration_seconds)
+        print(io, " seconds in a ", r.building, " yield ")
+    end
+    print_ingredient_group(io, r.outputs, simplified=simplified)
     print(io, " from ")
-    print_ingredient_group(io, r.inputs)
+    print_ingredient_group(io, r.inputs, simplified=simplified)
     print(io, '.')
 end
 
@@ -183,8 +191,9 @@ function Base.print(io::IO, solution::FactoryOverview
             print_nice(io, scale)
             print(io, " ")
             print_building(io, recipe.building, scale > 1)
-            print(io, ", doing: ")
-            print(io, recipe, line_ending)
+            print(io, ", making ")
+            print(io, recipe; simplified=true)
+            print(io, line_ending)
         end
     end
     print(io, TAB1..., inner_bookends[2], line_ending)

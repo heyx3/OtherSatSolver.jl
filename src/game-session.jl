@@ -1,8 +1,10 @@
 "Specific data gleaned from a `Cookbook`, using a specific subset of its alternative recipes."
 struct GameSession
     available_recipes::Vector{Recipe}
-    recipes_by_input::Dict{Item, Vector{Recipe}}
-    recipes_by_output::Dict{Item, Vector{Recipe}}
+    # Recipes are referenced by their index in the above list.
+    # Strongly-ordered so they can be referenced.
+    recipes_by_input::Dict{Item, Vector{Int}}
+    recipes_by_output::Dict{Item, Vector{Int}}
     processed_items::Set{Item} # Items that aren't "raw"
     cookbook::Cookbook
 end
@@ -28,25 +30,25 @@ function GameSession(cookbook::Cookbook, alternative_recipe_indices)::GameSessio
 
     # Pull data from the recipes.
     processed_items = Set{Item}()
-    recipes_by_input = Dict{Item, Vector{Recipe}}()
-    recipes_by_output = Dict{Item, Vector{Recipe}}()
-    for recipe in available_recipes
-        for (data_dict, session_dict) in [(recipe.inputs, recipes_by_input),
-                                          (recipe.outputs, recipes_by_output)]
-            for (ingredient, count) in data_dict
+    recipes_by_input = Dict{Item, Vector{Int}}()
+    recipes_by_output = Dict{Item, Vector{Int}}()
+    for (recipe_i, recipe) in enumerate(available_recipes)
+        for (data_in, data_out) in [(recipe.inputs, recipes_by_input),
+                                    (recipe.outputs, recipes_by_output)]
+            for (ingredient, count) in data_in
                 # Register this ingredient as a known item.
                 if !in(ingredient, cookbook.raw_items)
                     push!(processed_items, ingredient)
                 end
                 if !haskey(recipes_by_input, ingredient)
-                    recipes_by_input[ingredient] = Vector{Recipe}()
+                    recipes_by_input[ingredient] = Vector{Int}()
                 end
                 if !haskey(recipes_by_output, ingredient)
-                    recipes_by_output[ingredient] = Vector{Recipe}()
+                    recipes_by_output[ingredient] = Vector{Int}()
                 end
 
                 # Add an entry to the correct recipe lookup.
-                push!(session_dict[ingredient], recipe)
+                push!(data_out[ingredient], recipe_i)
             end
         end
     end
