@@ -4,7 +4,7 @@ cd(@__DIR__)
 # Activate, compile, and load this project.
 using Pkg
 Pkg.activate("..")
-using OtherSatSolver
+using OtherSatSolver, JuMP
 
 # Load the cookbook.
 const COOKBOOK_NAME = "Satisfactory.cbk"
@@ -35,28 +35,13 @@ println("\tFinished!")
 
 # Solve the factory floor.
 factory_solution_log = sprint() do io::IO
-    global factory_solution = #solve(FACTORY_FLOOR, io)
-                              solve_complex(FACTORY_FLOOR, io)
+    global factory_solution = solve(FACTORY_FLOOR, io)
 end
 if isnothing(factory_solution)
     println(":( Unable to solve it.")
 else
     println("Found a solution!")
 end
-
-# if isempty(factory_solution[2])
-#     println("Perfect solution!")
-# else
-#     print(":( An imperfect solution. The following items couldn't be solved: ")
-#     join(stdout, factory_solution[2], ", ")
-#     println()
-#     println("Partial solution is below:")
-#     # Give the user time to read before printing the partial solution:
-#     for _ in 1:3
-#         sleep(1)
-#         println('.')
-#     end
-# end
 
 println("First, the log:")
 sleep(2)

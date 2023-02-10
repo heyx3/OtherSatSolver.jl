@@ -3,10 +3,5 @@
     },
     "outputs_per_minute": {
         "high_speed_connector": "3.75"
-    },
-    "recipe_weights": {
-        "circuit_board": [ "0.0", "1.0" ],
-        "plastic": [ "1.0", "0.0" ],
-        "rubber": [ "1.0", "0.0" ]
     }
 }

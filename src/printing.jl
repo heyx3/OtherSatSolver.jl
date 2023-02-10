@@ -185,6 +185,7 @@ function Base.print(io::IO, solution::FactoryOverview
 
     # Recipes:
     print(io, TAB1..., "Buildings per recipe: ", inner_bookends[1], line_ending)
+    #TODO: Sort recipes by their importance. This will be hard to do when FactoryOverview doesn't have a reference to the FactoryFloor.
     for (recipe, scale) in solution.recipe_amounts
         if scale > 0
             print(io, TAB2...)
