@@ -350,7 +350,7 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
             # Solve, and capture the log for debugging.
             solution_box = Ref{Any}(nothing)
             solution_log = sprint() do io
-                solution_box[] = solve(problem, io)
+                solution_box[] = solve(problem, log_io = stdout)
             end
             @debug "Solution log:\n============\n$solution_log\n=============="
 
@@ -448,13 +448,13 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
             # Solve, and capture the log for debugging.
             solution_box = Ref{Any}(nothing)
             solution_log = sprint() do io
-                solution_box[] = solve(problem, io)
+                solution_box[] = solve(problem, log_io = io)
             end
             @debug "Solution log:\n============\n$solution_log\n=============="
 
             return solution_box[]
         end
-        
+
         solution = run_problem(Dict(:encased_industrial_beam => (2 + 1//4)),
                                Int[ ],
                                Dict(:concrete => 2))
@@ -496,4 +496,6 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
         ))
         @test solution.continuous_power_usage == solution.startup_power_usage
     end
+
+    #TODO: Test other solver objectives.
 end

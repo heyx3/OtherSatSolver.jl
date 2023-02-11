@@ -19,13 +19,41 @@ struct FactoryOverview
     continuous_power_usage::SNumber
 end
 
-"The solver uses `Float64`, then translates back to `Rational` within this margin of error."
-const FLOAT_PRECISION = Ref(0.00001)
+"
+A value which is raised to an exponent and then scaled.
+Useful when scoring the efficiency of factory overviews.
+For example, use a low scale for iron ore because it's so plentiful,
+    and use a high exponent for items you only have small veins of.
+"
+Base.@kwdef struct WeightedValue
+    scale::Float64 = 1.0
+    curve::Float64 = 1.0
+end
+evaluate(v::Float64, w::WeightedValue) = (v ^ w.curve) * v.scale
+
 
 "
-Solves a factory that includes multiple recipes and waste products/feedback loops.
+The solver uses `Float64`, then translates back to `Rational` within this margin of error.
+Satisfactory's display for overclocking only goes up to 4 decimal digits.
 "
-function solve(floor::FactoryFloor, log_io::IO = devnull)::Optional{FactoryOverview}
+const FLOAT_PRECISION = Ref(0.00001)
+
+"Solves a factory floor."
+function solve(floor::FactoryFloor,
+               ;
+               # You can use this to provide higher or lower preference
+               #    to specific raw materials that might be used.
+               # The solver will try to avoid using materials with higher values.
+               # All raws have a default priority of WeightedValue(1, 1).
+               raws_priorities::Dict{Item, WeightedValue} = Dict{Item, WeightedValue}(),
+               # Weights the impact of power efficiency on a factory design's judged quality.
+               power_efficiency_priority::WeightedValue = WeightedValue(
+                   # Extremely vague guess: a factory with 350 raw input should use 1000 MW.
+                   scale = 350 / 1000,
+                   # Power is not particularly rare, so let it scale linearly by default.
+                   curve = 1.0
+               ),
+               log_io::IO = devnull)::Optional{FactoryOverview}
     #=
         Describe the factory floor as a series of linear equations/inequalities.
 
@@ -61,7 +89,8 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Optional{FactoryOverv
 
     # The last few recipes are actually placeholders for "mine 1 raw item per minute".
     # Assign an (arbitrary) ordering to the raw items so they can be indexed.
-    n_pseudo_recipes = n_raws + n_recipes
+    n_pseudo_recipes = n_recipes + n_raws
+    first_mining_index = n_recipes + 1
     raws_ordering = Dict{Item, Int}(r=>i for (i, r) in enumerate(cookbook.raw_items))
     raws_by_idx = Dict{Int, Item}(v=>k for (k,v) in raws_ordering)
 
@@ -102,7 +131,7 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Optional{FactoryOverv
         # If this is a raw, add a term for the "mine" pseudo-recipe.
         if item in cookbook.raw_items
             raw_idx = raws_ordering[item]
-            pseudo_recipe_idx = n_recipes + raw_idx
+            pseudo_recipe_idx = first_mining_index + raw_idx-1
             log_data("\t Raw idx ", raw_idx)
             func_expr = :( $func_expr + x[$pseudo_recipe_idx] )
         end
@@ -115,11 +144,52 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Optional{FactoryOverv
         push!(solve_expr.args, :( @constraint(model, $final_expr)))
     end
 
-    #TODO: More thought into objectives (see list below):
-    #   1. Minimize raw material requirements
-    #   2. Take user preferences for alternative recipes and raw materials allowed.
-    #   3. Minimize power usage based on the building each recipe needs.
-    push!(solve_expr.args, :( @objective(model, Min, sum(r for r in x)) ))
+    # Minimize raw material requirements.
+    raw_material_expr = :( 0 )
+    raw_material_expr_is_nonlinear::Bool = false
+    for (raw, raw_idx) in raws_ordering
+        mining_recipe_idx = first_mining_index + raw_idx-1
+        raw_term_expr = :( x[$mining_recipe_idx] )
+        if haskey(raws_priorities, raw)
+            priority_weighting = raws_priorities[raw]
+            if !isone(priority_weighting.curve)
+                raw_material_expr_is_nonlinear = true
+                raw_term_expr = :( $raw_term_expr ^ $(priority_weighting.curve) )
+            end
+            if !isone(priority_weighting.scale)
+                raw_term_expr = :( $raw_term_expr * $(priority_weighting.scale) )
+            end
+        end
+        raw_material_expr = :( $raw_material_expr + $raw_term_expr )
+    end
+    push!(solve_expr.args,
+          raw_material_expr_is_nonlinear ?
+              :( @NLobjective(model, Min, $raw_material_expr) ) :
+              :( @objective(model, Min, $raw_material_expr) ))
+    # Minimize power usage (not including pseudo "mining" recipes, as mining power use varies a lot).
+    power_usage_expr = :( +() )
+    for (recipe_idx, recipe) in enumerate(game_session.available_recipes)
+        recipe_base_power_usage = cookbook.buildings[recipe.building]
+        push!(power_usage_expr.args, :( (x[$recipe_idx] * $recipe_base_power_usage) ))
+    end
+    if length(power_usage_expr.args) == 2
+        power_usage_expr = power_usage_expr.args[2]
+    end
+    if length(power_usage_expr.args) > 1
+        is_nonlinear::Bool = false
+        if !isone(power_efficiency_priority.curve)
+            is_nonlinear = true
+            power_usage_expr = :( $power_usage_expr ^ $(power_efficiency_priority.curve) )
+        end
+        if !isone(power_efficiency_priority.scale)
+            power_usage_expr = :( $power_usage_expr * $(power_efficiency_priority.scale) )
+        end
+        push!(solve_expr.args,
+              is_nonlinear ?
+                  :( @NLobjective(model, Min, $power_usage_expr) ) :
+                  :( @objective(model, Min, $power_usage_expr) ))
+    end
+    #TODO: Take user preferences for alternative recipes and raw materials allowed.
 
     # Add expressions to run and return the solver.
     push!(solve_expr.args, :( optimize!(model) ))
@@ -141,7 +211,7 @@ function solve(floor::FactoryFloor, log_io::IO = devnull)::Optional{FactoryOverv
                                           value.(x[1:n_recipes]))
     raws_mined_per_minute = Dict{Item, SNumber}(map(e -> raws_by_idx[e[1]] =>
                                                                rationalize(e[2], tol=FLOAT_PRECISION[]),
-                                                    enumerate(value.(x[(n_recipes+1) : n_pseudo_recipes]))))
+                                                    enumerate(value.(x[first_mining_index:n_pseudo_recipes]))))
     filter!(kvp -> !iszero(kvp[2]), raws_mined_per_minute)
     startup_power_usage::Rational = 0
     continuous_power_usage::Rational = 0

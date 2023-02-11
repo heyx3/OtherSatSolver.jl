@@ -35,7 +35,7 @@ println("\tFinished!")
 
 # Solve the factory floor.
 factory_solution_log = sprint() do io::IO
-    global factory_solution = solve(FACTORY_FLOOR, io)
+    global factory_solution = solve(FACTORY_FLOOR, log_io=io)
 end
 if isnothing(factory_solution)
     println(":( Unable to solve it.")

@@ -24,7 +24,7 @@ export parse_rational, load_json_number, SNumber,
        Cookbook, parse_cookbook_json,
        GameSession, write_game_session, read_game_session,
        FactoryFloor, parse_factory_floor_json,
-       FactoryOverview, solve,
+       FactoryOverview, WeightedValue, solve,
        print_nice, print_building
 
 end # module

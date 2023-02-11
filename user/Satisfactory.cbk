@@ -15,7 +15,7 @@
         "3": "manufacturer",
         "4": "manufacturer"
     },
-    "COMMENT": "Those are just the inferred buildings if a recipe doesn't explicitly list one.",
+    "COMMENT": "Above are the inferred buildings if a recipe doesn't explicitly list one.",
 
     "conveyor_speeds": [ 60, 120, 270, 480 ],
 
