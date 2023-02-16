@@ -2,6 +2,9 @@
     "inputs_per_minute": {
     },
     "outputs_per_minute": {
-        "high_speed_connector": "3.75"
+        "supercomputer": "1.875",
+        "radio_control_unit": "2.5",
+        "alclad_aluminum_sheet": 30,
+        "aluminum_casing": 60
     }
 }

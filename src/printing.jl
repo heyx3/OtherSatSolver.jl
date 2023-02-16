@@ -148,7 +148,9 @@ function Base.print(io::IO, solution::FactoryOverview
                     tab_in="    ",
                     line_ending='\n',
                     outer_bookends="{}",
-                    inner_bookends="<>")
+                    inner_bookends="<>",
+                    # Take the game session so we can sort the printed recipes
+                    session::Optional{GameSession} = nothing)
     TAB1 = tuple(tab, tab_in)
     TAB2 = tuple(TAB1..., tab_in)
 
@@ -185,9 +187,13 @@ function Base.print(io::IO, solution::FactoryOverview
 
     # Recipes:
     print(io, TAB1..., "Buildings per recipe: ", inner_bookends[1], line_ending)
-    #TODO: Sort recipes by their importance. This will be hard to do when FactoryOverview doesn't have a reference to the FactoryFloor.
-    for (recipe, scale) in solution.recipe_amounts
-        if scale > 0
+    # Sort them in the user-listed order if possible.
+    recipes = isnothing(session) ?
+                  keys(solution.recipe_amounts) :
+                  session.available_recipes
+    for recipe in recipes
+        if get(solution.recipe_amounts, recipe, 0) > 0
+            scale = solution.recipe_amounts[recipe]
             print(io, TAB2...)
             print_nice(io, scale)
             print(io, " ")

@@ -3,7 +3,7 @@ module OtherSatSolver
 using Random, JSON3, Printf
 
 # Optimization solver:
-using JuMP, EAGO
+using JuMP, AmplNLWriter, Couenne_jll, ECOS
 
 const Optional{T} = Union{T, Nothing}
 @inline exists(x) = !isnothing(x) && !ismissing(x)

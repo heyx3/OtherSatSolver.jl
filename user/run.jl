@@ -34,20 +34,25 @@ const FACTORY_FLOOR = parse_factory_floor_json(factory_floor_str, GAME_SESSION)
 println("\tFinished!")
 
 # Solve the factory floor.
+println("Running the solver...")
+const SOLVER_START_TIME = time()
 factory_solution_log = sprint() do io::IO
     global factory_solution = solve(FACTORY_FLOOR, log_io=io)
 end
+const SOLVER_END_TIME = time()
+const SOLVER_DURATION_SECONDS = (SOLVER_END_TIME - SOLVER_START_TIME)
 if isnothing(factory_solution)
-    println(":( Unable to solve it.")
+    println(":( Unable to solve it. Solver log is below:")
 else
-    println("Found a solution!")
+    println("Found a solution!\nFirst, the log:")
 end
-
-println("First, the log:")
 sleep(2)
 println("\n\n>>>>>>>>>>>>>>>>>>>>")
 println(factory_solution_log)
 println("<<<<<<<<<<<<<<<<<<<<")
-println("\n\nNow the solution!")
-sleep(2)
-println(factory_solution)
+if !isnothing(factory_solution)
+    println("\n\nNow the solution!")
+    sleep(2)
+    print(stdout, factory_solution, session=GAME_SESSION)
+    println()
+end
