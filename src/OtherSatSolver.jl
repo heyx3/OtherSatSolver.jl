@@ -1,6 +1,6 @@
 module OtherSatSolver
 
-using Random, JSON3, Printf
+using Setfield, Random, JSON3, Printf
 
 # Optimization solver:
 using JuMP, AmplNLWriter, Couenne_jll, ECOS

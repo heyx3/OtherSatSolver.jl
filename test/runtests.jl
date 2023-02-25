@@ -156,11 +156,69 @@ const RECIPE_STEEL_INGOT = Recipe(Dict(:coal => 3, :iron_ore => 3),
                                   Dict(:steel_ingot => 3),
                                   60 // (45//3), :foundry)
 const RECIPE_STEEL_BEAM = Recipe(Dict(:steel_ingot => 4), Dict(:steel_beam => 1), 60//15, :constructor)
-const RECIPE_STEEL_PIPE = Recipe(Dict(:steel_ingot => 3), Dict(:steel_pipe => 2), 60//20, :constructor)
+const RECIPE_STEEL_PIPE = Recipe(Dict(:steel_ingot => 3), Dict(:steel_pipe => 2), 60 // (20 // 2), :constructor)
 const RECIPE_ENCASED_INDUSTRIAL_BEAM = Recipe(Dict(:steel_beam => 4, :concrete => 5),
                                               Dict(:encased_industrial_beam => 1),
                                               60//6, :assembler)
 const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 60//60, :constructor)
+
+"A cookbook that has multiple options to make materials."
+const CHOICES_COOKBOOK_JSON = """{
+    "buildings" : {
+        "foundry": 2,
+        "smelter": 1,
+        "constructor": 1,
+        "assembler": 2,
+        "refinery": 4
+    },
+    "building_per_inputs": {
+        "1": "constructor",
+        "2": "assembler"
+    },
+    "raw_items": [
+        "iron_ore", "water"
+    ],
+    "conveyor_speeds": [ 60, 120, 270, 480 ],
+    "main_recipes": [
+        {
+            "inputs": { "iron_ore": 1 },
+            "outputs": { "iron_ingot": 1 },
+            "per_minute": 30
+        },
+        {
+            "inputs": { "iron_ore": 1, "water": 30 },
+            "outputs": { "iron_ingot": 1 },
+            "per_minute": 300,
+            "building": "refinery"
+        },
+        {
+            "inputs": { "iron_ingot": 1 },
+            "outputs": { "iron_rod": 1 },
+            "per_minute": 20
+        },
+        {
+            "inputs": { "iron_ingot": 1, "iron_ore": 1 },
+            "outputs": { "iron_rod": 10 },
+            "per_minute": 20
+        },
+        {
+            "inputs": { "iron_rod": 1 },
+            "outputs": { "screw": 4 },
+            "per_minute": 40
+        },
+        {
+            "inputs": { "iron_rod": 1, "screw": 4 },
+            "outputs": { "screw": 40 },
+            "per_minute": 400
+        }
+    ]
+}"""
+const RECIPE_CHOICES_INGOT_SIMPLE = Recipe(Dict(:iron_ore => 1), Dict(:iron_ingot => 1), 60//30, :smelter)
+const RECIPE_CHOICES_INGOT_FANCY = Recipe(Dict(:iron_ore => 1, :water => 30), Dict(:iron_ingot => 1), 60//300, :refinery)
+const RECIPE_CHOICES_ROD_SIMPLE = Recipe(Dict(:iron_ingot => 1), Dict(:iron_rod => 1), 60//20, :constructor)
+const RECIPE_CHOICES_ROD_FANCY = Recipe(Dict(:iron_ingot => 1, :iron_ore => 1), Dict(:iron_rod => 10), 60 // (20//10), :assembler)
+const RECIPE_CHOICES_SCREW_SIMPLE = Recipe(Dict(:iron_rod => 1), Dict(:screw => 4), 60 // (40//4), :constructor)
+const RECIPE_CHOICES_SCREW_FANCY = Recipe(Dict(:iron_rod => 1, :screw => 4), Dict(:screw => 40), 60 // (400//40), :assembler)
 
 
 @testset "OtherSatSolver" begin
@@ -350,7 +408,7 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
             # Solve, and capture the log for debugging.
             solution_box = Ref{Any}(nothing)
             solution_log = sprint() do io
-                solution_box[] = solve(problem, log_io = stdout)
+                solution_box[] = solve(problem, log_io = io)
             end
             @debug "Solution log:\n============\n$solution_log\n=============="
 
@@ -430,6 +488,7 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
         ))
         @test solution_big.continuous_power_usage == solution_big.startup_power_usage
 
+        #TODO: Try to make some actual items, and some raws, and also provide raws as inputs.
     end
 
     @testset "Solving more complex chains" begin
@@ -495,6 +554,47 @@ const RECIPE_BIOMASS_LEAVES = Recipe(Dict(:leaves => 10), Dict(:biomass => 5), 6
                cookbook.buildings[RECIPE_STEEL_INGOT.building]
         ))
         @test solution.continuous_power_usage == solution.startup_power_usage
+    end
+
+    @testset "Solving with multiple choices for recipes" begin
+        cookbook = parse_cookbook_json(CHOICES_COOKBOOK_JSON)
+
+        function run_problem(desired_outputs,
+                             alternative_recipes = Int[ ],
+                             inputs_per_minute = Dict{Item, SNumber}()
+                            )::Union{Nothing, FactoryOverview}
+            session = GameSession(cookbook, alternative_recipes)
+            problem = FactoryFloor(Dict(k=>(v//1) for (k,v) in desired_outputs),
+                                   Dict(k=>(v//1) for (k,v) in inputs_per_minute),
+                                   session)
+
+            # Solve, and capture the log for debugging.
+            solution_box = Ref{Any}(nothing)
+            solution_log = sprint() do io
+                solution_box[] = solve(problem, log_io = io)
+            end
+            @debug "Solution log:\n============\n$solution_log\n=============="
+
+            return solution_box[]
+        end
+
+        solution_ingot::Union{Nothing, FactoryOverview} = run_problem(Dict(:iron_ingot => 30))
+        @test !isnothing(solution_ingot)
+        for (recipe, scale) in solution_ingot.recipe_amounts
+            print("\t")
+            print_nice(stdout, scale)
+            println(" of recipe ", recipe)
+        end
+        # As it's written currently, the solver is minimizing the square of each recipe scale.
+        # The facy iron ingot recipe uses a crazy amount of water, so the simple recipe is ideal.
+        # Iron ore:
+        #  x1 * -30   +   x2 * -300   +    x3   ==  0
+        # Iron ingot:
+        #  x1 * 30    +   x2 * 300              ==  1
+        # Water:
+        #                 x2 * -9000  +    x4   ==  0
+        @test solution_ingot.recipe_amounts == Dict(RECIPE_CHOICES_INGOT_SIMPLE => 1)
+        @test solution_ingot.raw_amounts == Dict(:iron_ore => 30)
     end
 
     #TODO: Test other solver objectives.
